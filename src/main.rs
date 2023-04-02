@@ -12,11 +12,57 @@ use serde::Deserialize;
 use serde::Serialize;
 
 #[derive(Serialize, Deserialize, Debug)]
+#[allow(non_snake_case)]
+pub struct Biome {
+    palette: Vec<String>,
+    data: Vec<i64>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[allow(non_snake_case)]
+pub struct PaletteBlockProperties {
+    level: Option<String>,
+    snowy: Option<String>,
+    distance: Option<String>,
+    persistent: Option<String>,
+    waterlogged: Option<String>,
+    axis: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[allow(non_snake_case)]
+pub struct PaletteBlock {
+    Properties: Option<PaletteBlockProperties>,
+    Name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[allow(non_snake_case)]
+pub struct BlockStates {
+    palette: Vec<PaletteBlock>,
+    data: Option<Vec<i64>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[allow(non_snake_case)]
+pub struct Section {
+    Y: i8,
+    block_states: BlockStates,
+    // biomes: Vec<Biome>,
+    // BlockLight: Vec<u8>,
+    // SkyLight: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[allow(non_snake_case)]
 pub struct Chunk {
     DataVersion: i32,
     xPos: i32,
     zPos: i32,
     yPos: i32,
+    Status: String,
+    LastUpdate: i64,
+    sections: Vec<Section>,
 }
 
 struct ChunkOffset {
@@ -55,13 +101,18 @@ fn read_chunk(data: &[u8], offset: &ChunkOffset) -> Result<Chunk> {
     }
     let mut chunk_data = &data[base_offset + 5..];
 
-    Ok(nbt::de::from_zlib_reader(&mut chunk_data)?)
+    println!("Data: {}", nbt::Blob::from_zlib_reader(&mut chunk_data)?);
+    let x: Result<Chunk> = nbt::de::from_zlib_reader(&mut chunk_data);
+    x.map_err(|e| {
+        println!("{}", e);
+        e
+    })
 }
 
 pub fn read_region_file(input: &mut fs::File) -> Result<Vec<Chunk>> {
     let data = read_to_vec(input)?;
 
-    let chunks: Vec<_> = (0..1024)
+    let chunks: Vec<_> = (0..1/*1024*/)
         .into_par_iter()
         .filter_map(|i| -> Option<Chunk> {
             // let x = i & 31;

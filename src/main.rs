@@ -13,9 +13,9 @@ use serde::Serialize;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(non_snake_case)]
-pub struct Biome {
+pub struct Biomes {
     palette: Vec<String>,
-    data: Vec<i64>,
+    data: Option<Vec<i64>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -46,11 +46,11 @@ pub struct BlockStates {
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(non_snake_case)]
 pub struct Section {
-    Y: i8,
+    Y: i16,
     block_states: BlockStates,
-    // biomes: Vec<Biome>,
-    // BlockLight: Vec<u8>,
-    // SkyLight: Vec<u8>,
+    biomes: Biomes,
+    BlockLight: Option<Vec<i8>>,
+    SkyLight: Option<Vec<i8>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -6,7 +6,9 @@ use std::fs;
 use std::io::Read;
 use std::process::exit;
 
-use nbt::Result;
+use anyhow::anyhow;
+use anyhow::Result;
+
 use rayon::prelude::*;
 use serde::Deserialize;
 use serde::Serialize;
@@ -65,6 +67,10 @@ pub struct Chunk {
     sections: Vec<Section>,
 }
 
+pub struct RegionFile {
+    chunks: [Option<Chunk>; 1024],
+}
+
 struct ChunkOffset {
     pub offset: u32, // Offset in file in 4KiB blocks from the start of the region file
     pub sector_count: u32,
@@ -101,20 +107,16 @@ fn read_chunk(data: &[u8], offset: &ChunkOffset) -> Result<Chunk> {
     }
     let mut chunk_data = &data[base_offset + 5..];
 
-    println!("Data: {}", nbt::Blob::from_zlib_reader(&mut chunk_data)?);
-    let x: Result<Chunk> = nbt::de::from_zlib_reader(&mut chunk_data);
-    x.map_err(|e| {
-        println!("{}", e);
-        e
-    })
+    let x: nbt::Result<Chunk> = nbt::de::from_zlib_reader(&mut chunk_data);
+    x.map_or(Err(anyhow!("Error")), |x| Ok(x))
 }
 
-pub fn read_region_file(input: &mut fs::File) -> Result<Vec<Chunk>> {
+pub fn read_region_file(input: &mut fs::File) -> Result<RegionFile> {
     let data = read_to_vec(input)?;
 
-    let chunks: Vec<_> = (0..1/*1024*/)
+    let chunks: Vec<_> = (0..1024)
         .into_par_iter()
-        .filter_map(|i| -> Option<Chunk> {
+        .map(|i| -> Option<Chunk> {
             // let x = i & 31;
             // let z = (i >> 5) & 31;
             let offset = read_chunk_offset(&data[..], 4 * i);
@@ -128,17 +130,27 @@ pub fn read_region_file(input: &mut fs::File) -> Result<Vec<Chunk>> {
         })
         .collect();
 
-    Ok(chunks)
+    let region_file = RegionFile {
+        chunks: chunks
+            .try_into()
+            .unwrap_or_else(|_| panic!("There are not 1024 chunks in the region file")),
+    };
+
+    Ok(region_file)
 }
 
 fn run() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     if let Some(arg) = args.into_iter().skip(1).take(1).next() {
         let mut file = fs::File::open(&arg)?;
-        let chunks = read_region_file(&mut file)?;
-        for chunk in chunks {
-            println!("{:?}", chunk);
-        }
+        let mut region_file = read_region_file(&mut file)?;
+        region_file.chunks = region_file.chunks.map(|chunk| {
+            chunk.map_blocks_in_place(|blockState| "minecraft:tnt");
+            chunk
+        });
+        file = fs::File::open(&arg)?;
+        write_region_file(file);
+
         Ok(())
     } else {
         eprintln!("error: a filename is required.");
